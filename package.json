@@ -14,8 +14,10 @@
     "bcrypt": "^4.0.1",
     "dotenv": "^8.2.0",
     "express": "^4.17.1",
+    "multer": "^1.4.2",
     "mysql": "^2.18.1",
     "nodemailer": "^6.4.6",
+    "sharp": "^0.25.2",
     "validator": "^13.0.0"
   }
 }

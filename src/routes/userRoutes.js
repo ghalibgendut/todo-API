@@ -3,6 +3,46 @@ const router = require('express').Router();
 const verifSendEmail = require('../config/verifSendEmail');
 const bcrypt = require('bcrypt');
 const validator = require('validator');
+const multer = require('multer');
+const sharp = require('sharp');
+const path = require('path');
+
+
+
+
+// CONFIG Multer and Sharp
+const upload = multer ({
+
+    limits: {
+        fileSize : 10000000 // Bytes, default 1MB
+    },
+    fileFilter(req, file, cb){
+        if (!file.originalname.match(/\.(jgp|jpeg|png)$/)) {
+            return cb(new Error('Please upload image file (jpg, jpeg, or png)'))
+        }
+        cb(undefined, true)
+    }
+})
+
+// UPLOAD AVATAR
+router.post('/user/avatar',upload.single('avatar'), async (req,res)=>{
+    
+    // Menyimpan foto di folder
+    await sharp(req.file.buffer).resize(200).png().toFile(path.join(__dirname,'../files/berhasil-upload.png'));
+    // console.log(path.join(__dirname,'../files'))
+    
+
+    // Simpan nama fotonya di DB
+    res.send('Berhasil Upload!');
+
+},(err,req,res,next)=>{
+    res.send(err)
+})
+
+
+
+
+
 
 // Get all user
 router.get('/getAllUser', (req,res)=>{
@@ -69,8 +109,6 @@ router.get('/verify/:userid', (req,res)=>{
         res.send('<h1>Verifikasi Berhasil!</h1>')
     })
 })
-
-
 
 // Login
 router.post('/user/login', (req,res)=>{
