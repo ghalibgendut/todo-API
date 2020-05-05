@@ -3,10 +3,12 @@ const router = require('express').Router()
 
 
 // READ TODO
-router.get('/user/read', (req,res)=>{
-    const sql = `SELECT * FROM todos t JOIN users u ON t.user_id = u.id`;
+router.get('/user/read/:userid', (req,res)=>{
+    const sql = `SELECT * FROM todos WHERE user_id = ?`;
+    const data = req.params.userid;
 
-    conn.query(sql, (err, result)=>{
+
+    conn.query(sql, data, (err, result)=>{
         if (err) {
             return res.send(err);
         }
