@@ -8,15 +8,17 @@ const sharp = require('sharp');
 const path = require('path');
 
 
+// Alamat directori
+const fileDir = path.join(__dirname, '../files');
 
 
 // CONFIG Multer and Sharp
-const upload = multer ({
+const upload = multer({
 
     limits: {
-        fileSize : 10000000 // Bytes, default 1MB
+        fileSize: 10000000 // Bytes, default 1MB
     },
-    fileFilter(req, file, cb){
+    fileFilter(req, file, cb) {
         if (!file.originalname.match(/\.(jgp|jpeg|png)$/)) {
             return cb(new Error('Please upload image file (jpg, jpeg, or png)'))
         }
@@ -24,19 +26,74 @@ const upload = multer ({
     }
 })
 
+
 // UPLOAD AVATAR
-router.post('/user/avatar',upload.single('avatar'), async (req,res)=>{
-    
-    // Menyimpan foto di folder
-    await sharp(req.file.buffer).resize(200).png().toFile(path.join(__dirname,'../files/berhasil-upload.png'));
-    // console.log(path.join(__dirname,'../files'))
-    
+router.post('/user/avatar', upload.single('avatar'), async (req, res) => {
 
-    // Simpan nama fotonya di DB
-    res.send('Berhasil Upload!');
+    try {
+        const avatar = `${req.body.username}-avatar.png`
 
-},(err,req,res,next)=>{
+        // Query upload ke DB
+        const sql = `UPDATE users SET avatar = ? WHERE username = ?`
+        const data = [avatar, req.body.username]
+
+
+        // Menyimpan foto di folder
+        await sharp(req.file.buffer).resize(200).png().toFile(`${fileDir}/${avatar}`);
+
+        // Simpan nama fotonya di DB
+        conn.query(sql, data, (err, result) => {
+            if (err) {
+                return res.send(err)
+            }
+        })
+        // kirim respon ke user
+        res.send('Berhasil Upload!');
+    } catch (err) {
+        res.send(err.message);
+    }
+
+}, (err, req, res, next) => {
     res.send(err)
+})
+
+// GET AVATAR
+router.get('/user/avatar/:username', (req, res) => {
+    const username = req.params.username
+
+    // query cari nama file di DB
+    const sql = `SELECT avatar FROM users where username = '${username}'`
+
+    // Kirim file ke client
+    conn.query(sql, (err, result) => {
+        // jika ada error saat running query
+        if (err) {
+            return res.send(err);
+        }
+        try {
+            // Menggunakan options
+            const avatarName = result[0].avatar;
+            // res.send(avatarName)
+            const options = {
+                root: fileDir
+            }
+            // Mengirim file sebagai respon
+            res.sendFile(avatarName, options, (err)=>{
+                if (err) {
+                    return res.send(err)
+                }
+            })
+
+            // Menggunakan absolute path
+            // res.sendFile(`${fileDir}/${avatarName}`, (err) => {
+            //     if (err) {
+            //         return res.send(err)
+            //     }
+            // })
+        } catch (err) {
+            res.send(err);
+        }
+    })
 })
 
 
@@ -45,10 +102,10 @@ router.post('/user/avatar',upload.single('avatar'), async (req,res)=>{
 
 
 // Get all user
-router.get('/getAllUser', (req,res)=>{
+router.get('/getAllUser', (req, res) => {
     const sql = `SELECT * FROM users`
 
-    conn.query(sql, (err, result)=>{
+    conn.query(sql, (err, result) => {
         if (err) {
             return res.send(err);
         }
@@ -61,8 +118,8 @@ router.get('/getAllUser', (req,res)=>{
 })
 
 // REGISTER USER
-router.post('/register', (req,res)=>{
-    const {username, name, email, password} = req.body;
+router.post('/register', (req, res) => {
+    const { username, name, email, password } = req.body;
     // Query insert
     // const sql = `INSERT INTO users (username, name, email, password) 
     //             VALUES ('${username}', '${name}', '${email}', '${password}')`;
@@ -80,7 +137,7 @@ router.post('/register', (req,res)=>{
 
 
     // Running Query
-    conn.query(sql, data, (err, result)=>{
+    conn.query(sql, data, (err, result) => {
         // Cek jika ada error
         if (err) {
             return res.send(err);
@@ -91,19 +148,19 @@ router.post('/register', (req,res)=>{
 
 
         // jika berhasil, kirim object
-        res.send ({
-            message : 'Registrasi Berhasil'
+        res.send({
+            message: 'Registrasi Berhasil'
         })
     })
 })
 
 // Verify Email
-router.get('/verify/:userid', (req,res)=>{
+router.get('/verify/:userid', (req, res) => {
     const sql = `UPDATE users SET verified = true WHERE id = '${req.params.userid}'`
 
-    conn.query(sql, (err, result)=>{
+    conn.query(sql, (err, result) => {
         if (err) {
-            return res.send({error: err.sqlMessage})
+            return res.send({ error: err.sqlMessage })
         }
 
         res.send('<h1>Verifikasi Berhasil!</h1>')
@@ -111,16 +168,16 @@ router.get('/verify/:userid', (req,res)=>{
 })
 
 // Login
-router.post('/user/login', (req,res)=>{
-    const {username, password} = req.body;
+router.post('/user/login', (req, res) => {
+    const { username, password } = req.body;
     const sql = `SELECT * FROM users WHERE username = '${username}'`;
-    
-    
 
-    conn.query(sql, (err,result)=>{
+
+
+    conn.query(sql, (err, result) => {
         // cek error
         if (err) {
-            return res.send({error: err.sqlMessage});
+            return res.send({ error: err.sqlMessage });
         }
         let user = result[0]
 
