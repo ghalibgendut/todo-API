@@ -6,11 +6,38 @@ const validator = require('validator');
 const multer = require('multer');
 const sharp = require('sharp');
 const path = require('path');
-
+const jwt = require('jsonwebtoken');
 
 // Alamat directori
 const fileDir = path.join(__dirname, '../files');
 
+// JWT auth
+// Function Authentication
+const auth = (req, res, next) => {
+    // Mengambil token saat proses menerima request
+    let token = req.header('Authorization')
+    // Mencoba mengambil data asli yang tersimpan di dalam token
+    let decoded = jwt.verify(token, 'fresh-rain890')
+    // Didalam token ada id user, selanjutnya di gunakan untuk mengambil data user di database
+    let sql = `SELECT id, username, name, email, avatar FROM users WHERE id = ${decoded.id}`
+
+    conn.query(sql, (err, result) => { 
+        if (err) return res.send(err)
+        // informasi user disimpan ke object 'req' di property 'user'
+        req.user = result[0]
+        // Untuk melanjutkan ke proses berikutnya (proses utama)
+        next()
+    })
+
+}
+
+// UPDATE USER
+router.patch('/user/profile', auth, (req, res) => {
+    res.send({
+        message: 'Berikut isi req.user',
+        user: req.user
+    })
+})
 
 // CONFIG Multer and Sharp
 const upload = multer({
@@ -28,7 +55,7 @@ const upload = multer({
 
 
 // UPLOAD AVATAR
-router.post('/user/avatar', upload.single('avatar'), async (req, res) => {
+router.post('/user/avatar', auth, upload.single('avatar'), async (req, res) => {
 
     try {
         const avatar = `${req.body.username}-avatar.png`
@@ -78,7 +105,7 @@ router.get('/user/avatar/:username', (req, res) => {
                 root: fileDir
             }
             // Mengirim file sebagai respon
-            res.sendFile(avatarName, options, (err)=>{
+            res.sendFile(avatarName, options, (err) => {
                 if (err) {
                     return res.send(err)
                 }
@@ -95,10 +122,6 @@ router.get('/user/avatar/:username', (req, res) => {
         }
     })
 })
-
-
-
-
 
 
 // Get all user
@@ -171,6 +194,7 @@ router.get('/verify/:userid', (req, res) => {
 router.post('/user/login', (req, res) => {
     const { username, password } = req.body;
     const sql = `SELECT * FROM users WHERE username = '${username}'`;
+    const sql2 = `INSERT INTO tokens SET ?`;
 
 
 
@@ -197,14 +221,28 @@ router.post('/user/login', (req, res) => {
             return res.send(`Anda belum terverifikasi, silakan cek email anda`);
         }
 
-        // hapus beberapa property
-        delete user.password;
-        delete user.avatar;
-        delete user.verified;
+        // Membuat token
+        let token = jwt.sign({ id: user.id }, 'fresh-rain890')
+        // Property user_id dan token merupakan nama kolom yang ada di tabel 'tokens'
+        const data = { user_id: user.id, token: token }
 
-        res.send({
-            message: 'Login Berhasil',
-            user: user
+        // Query buat token
+        conn.query(sql2, data, (err, result)=>{
+            if (err) {
+                return res.send(err)
+            }
+
+            // hapus beberapa property
+            delete user.password;
+            delete user.avatar;
+            delete user.verified;
+            
+            res.send({
+                message: 'Login Berhasil',
+                user: user,
+                token: token
+            })
+
         })
     })
 })
@@ -216,5 +254,3 @@ router.post('/user/login', (req, res) => {
 
 
 module.exports = router;
-
-
