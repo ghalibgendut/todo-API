@@ -1,4 +1,4 @@
-const conn = require('../config/mysql.js');
+const conn = require('../config/database/index_db.js');
 const router = require('express').Router();
 const verifSendEmail = require('../config/verifSendEmail');
 const bcrypt = require('bcrypt');
@@ -7,37 +7,10 @@ const multer = require('multer');
 const sharp = require('sharp');
 const path = require('path');
 const jwt = require('jsonwebtoken');
+const auth = require('../config/auth/index_auth');
 
 // Alamat directori
 const fileDir = path.join(__dirname, '../files');
-
-// JWT auth
-// Function Authentication
-const auth = (req, res, next) => {
-    // Mengambil token saat proses menerima request
-    let token = req.header('Authorization')
-    // Mencoba mengambil data asli yang tersimpan di dalam token
-    let decoded = jwt.verify(token, 'fresh-rain890')
-    // Didalam token ada id user, selanjutnya di gunakan untuk mengambil data user di database
-    let sql = `SELECT id, username, name, email, avatar FROM users WHERE id = ${decoded.id}`
-
-    conn.query(sql, (err, result) => { 
-        if (err) return res.send(err)
-        // informasi user disimpan ke object 'req' di property 'user'
-        req.user = result[0]
-        // Untuk melanjutkan ke proses berikutnya (proses utama)
-        next()
-    })
-
-}
-
-// UPDATE USER
-router.patch('/user/profile', auth, (req, res) => {
-    res.send({
-        message: 'Berikut isi req.user',
-        user: req.user
-    })
-})
 
 // CONFIG Multer and Sharp
 const upload = multer({
@@ -54,35 +27,13 @@ const upload = multer({
 })
 
 
-// UPLOAD AVATAR
-router.post('/user/avatar', auth, upload.single('avatar'), async (req, res) => {
 
-    try {
-        const avatar = `${req.body.username}-avatar.png`
+////////////
+// G E T //
+//////////
 
-        // Query upload ke DB
-        const sql = `UPDATE users SET avatar = ? WHERE username = ?`
-        const data = [avatar, req.body.username]
-
-
-        // Menyimpan foto di folder
-        await sharp(req.file.buffer).resize(200).png().toFile(`${fileDir}/${avatar}`);
-
-        // Simpan nama fotonya di DB
-        conn.query(sql, data, (err, result) => {
-            if (err) {
-                return res.send(err)
-            }
-        })
-        // kirim respon ke user
-        res.send('Berhasil Upload!');
-    } catch (err) {
-        res.send(err.message);
-    }
-
-}, (err, req, res, next) => {
-    res.send(err)
-})
+// GET PROFILE
+router.get('/user/profile', auth, (req,res)=> res.send(req.user) )
 
 // GET AVATAR
 router.get('/user/avatar/:username', (req, res) => {
@@ -95,7 +46,7 @@ router.get('/user/avatar/:username', (req, res) => {
     conn.query(sql, (err, result) => {
         // jika ada error saat running query
         if (err) {
-            return res.send(err);
+            return res.send(err.sqlMessage);
         }
         try {
             // Menggunakan options
@@ -123,14 +74,13 @@ router.get('/user/avatar/:username', (req, res) => {
     })
 })
 
-
 // Get all user
 router.get('/getAllUser', (req, res) => {
     const sql = `SELECT * FROM users`
 
     conn.query(sql, (err, result) => {
         if (err) {
-            return res.send(err);
+            return res.send(err.sqlMessage);
         }
 
         res.send({
@@ -139,6 +89,58 @@ router.get('/getAllUser', (req, res) => {
         })
     })
 })
+
+// Verify Email
+router.get('/verify/:userid', (req, res) => {
+    const sql = `UPDATE users SET verified = true WHERE id = '${req.params.userid}'`
+
+    conn.query(sql, (err, result) => {
+        if (err) {
+            return res.send({ error: err.sqlMessage })
+        }
+
+        res.send('<h1>Verifikasi Berhasil!</h1>')
+    })
+})
+
+
+
+
+
+//////////////
+// P O S T //
+////////////
+
+// UPLOAD AVATAR
+router.post('/user/avatar', auth, upload.single('avatar'), async (req, res) => {
+
+    try {
+        const avatar = `${req.body.username}-avatar.png`
+
+        // Query upload ke DB
+        const sql = `UPDATE users SET avatar = ? WHERE username = ?`
+        const data = [avatar, req.body.username]
+
+
+        // Menyimpan foto di folder
+        await sharp(req.file.buffer).resize(200).png().toFile(`${fileDir}/${avatar}`);
+
+        // Simpan nama fotonya di DB
+        conn.query(sql, data, (err, result) => {
+            if (err) {
+                return res.send(err.sqlMessage)
+            }
+        })
+        // kirim respon ke user
+        res.send('Berhasil Upload!');
+    } catch (err) {
+        res.send(err.message);
+    }
+
+}, (err, req, res, next) => {
+    res.send(err)
+})
+
 
 // REGISTER USER
 router.post('/register', (req, res) => {
@@ -163,7 +165,7 @@ router.post('/register', (req, res) => {
     conn.query(sql, data, (err, result) => {
         // Cek jika ada error
         if (err) {
-            return res.send(err);
+            return res.send(err.sqlMessage);
         }
 
         // Kirim email verifikasi ke user
@@ -177,18 +179,6 @@ router.post('/register', (req, res) => {
     })
 })
 
-// Verify Email
-router.get('/verify/:userid', (req, res) => {
-    const sql = `UPDATE users SET verified = true WHERE id = '${req.params.userid}'`
-
-    conn.query(sql, (err, result) => {
-        if (err) {
-            return res.send({ error: err.sqlMessage })
-        }
-
-        res.send('<h1>Verifikasi Berhasil!</h1>')
-    })
-})
 
 // Login
 router.post('/user/login', (req, res) => {
@@ -229,7 +219,7 @@ router.post('/user/login', (req, res) => {
         // Query buat token
         conn.query(sql2, data, (err, result)=>{
             if (err) {
-                return res.send(err)
+                return res.send(err.sqlMessage)
             }
 
             // hapus beberapa property
@@ -248,6 +238,31 @@ router.post('/user/login', (req, res) => {
 })
 
 
+
+////////////////
+// P A T C H //
+//////////////
+
+// UPDATE USER
+router.patch('/user/profile', auth, (req, res) => {
+    const sql = `UPDATE users SET ? WHERE id = ?`
+    const data = [req.body, req.user.id]
+
+    if (req.body.password) {
+        req.body.password = bcrypt.hashSync(req.body.password, 8)
+    }
+
+    conn.query(sql, data, (err, result)=>{
+        if (err) {
+            return res.send(err.sqlMessage)
+        }
+
+        res.send({
+            message: "Update success!",
+            result
+        })
+    })
+})
 
 
 

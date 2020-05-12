@@ -1,16 +1,17 @@
-const conn = require('../config/mysql.js')
+const conn = require('../config/database/index_db.js')
 const router = require('express').Router()
+const auth = require('../config/auth/index_auth');
 
 
 // READ TODO
-router.get('/user/read/:userid', (req,res)=>{
+router.get('/todo', auth, (req,res)=>{
     const sql = `SELECT * FROM todos WHERE user_id = ?`;
-    const data = req.params.userid;
+    const data = req.user.id;
 
 
     conn.query(sql, data, (err, result)=>{
         if (err) {
-            return res.send(err);
+            return res.send(err.sqlMessage);
         }
 
         res.send({
@@ -21,11 +22,11 @@ router.get('/user/read/:userid', (req,res)=>{
 })
 
 // CREATE TODO
-router.post('/user/todo', (req,res)=>{
+router.post('/todo', auth,(req,res)=>{
     // req.body = {user_id, description}
 
     const sql = `INSERT INTO todos SET ?`
-    const data = req.body;
+    const data = {user_id: req.user.id, description:req.body.description };
 
     conn.query(sql,data, (err,result)=>{
         if (err) {
@@ -40,9 +41,9 @@ router.post('/user/todo', (req,res)=>{
 })
 
 // UPDATE TODO
-router.patch ('/user/todo/:todoid', (req, res)=>{
-    const sql = `UPDATE todos SET ? WHERE id = ?`
-    const data = [req.body , req.params.todoid]
+router.patch ('/todo/:todoid', auth, (req, res)=>{
+    const sql = `UPDATE todos SET ? WHERE id = ? AND user_id = ?`
+    const data = [req.body, req.params.todoid, req.user.id]
 
     conn.query(sql, data, (err, result)=>{
         if (err) {
@@ -56,9 +57,9 @@ router.patch ('/user/todo/:todoid', (req, res)=>{
 })
 
 // DELETE TODO
-router.delete('/user/todo/:todoid', (req, res)=>{
-    const sql = `DELETE FROM todos WHERE id = ?`
-    const data = req.params.todoid
+router.delete('/todo/:todoid', auth, (req, res)=>{
+    const sql = `DELETE FROM todos WHERE id = ? AND user_id = ?`
+    const data = [req.params.todoid, req.user.id]
 
     conn.query(sql, data, (err, result)=>{
         if (err) {
